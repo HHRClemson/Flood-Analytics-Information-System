@@ -3,12 +3,15 @@ from tweepy import Cursor
 from tweepy.streaming import StreamListener
 from tweepy import OAuthHandler
 from tweepy import Stream
+from tweepy import TweepError
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from textblob import TextBlob
 import re
 import sys
+import datetime
+import time
 import twitterkeys
 
 class twitterClient():
@@ -35,6 +38,24 @@ class twitterClient():
         for tweet in Cursor(self.twitter_client.home_timeline,id=self.twitter_user).items(num_tweet):
             home_tweets.append(tweet)
         return home_tweets
+    def get_tweets_between_date(self, start, end):
+        tweets_during_florence = []
+        c = Cursor(self.twitter_client.user_timeline, id=self.twitter_user).items()
+        while True:
+            try:
+                tweet = c.next()
+                if tweet.created_at < end_date and tweet.created_at > start:
+                    tweets_during_florence.append(tweet)
+                elif tweet.created_at < start:
+                    return tweets_during_florence
+            except TweepError:
+                time.sleep(60*15)
+                continue
+            except StopIteration:
+                break
+
+
+            
 
 class twitterAuthenticator():
     """
@@ -112,12 +133,18 @@ class tweet_analyzer():
         return df
 
 if __name__ == "__main__":
-    twitter_client = twitterClient()
+    twitter_client = twitterClient("weatherchannel")
     api = twitter_client.get_twitter_api()
     twitter_analyzer = tweet_analyzer()
-    tweets = api.user_timeline(screen_name="weatherchannel", count=20)
-    df= twitter_analyzer.tweets_to_dataframe(tweets)
+    tweets = api.user_timeline(screen_name="weatherchannel")    
+    #Set Start Date and End Date
+    start_date = datetime.datetime(2018,9,7)
+    end_date = datetime.datetime(2018,10,7)
+    tweets_during_florence = twitter_client.get_tweets_between_date(start_date,end_date)
+    
+    df= twitter_analyzer.tweets_to_dataframe(tweets_during_florence)
     df['sentiment'] = np.array([twitter_analyzer.analyze_sentiment(tweet) for tweet in df['Tweets']])
+    df.to_csv("data.csv")
     #get Average Length overall 
     print(np.max(df['likes']))
     print(df.head(10))
